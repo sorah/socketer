@@ -1,5 +1,5 @@
 require "socketer/version"
 
-module Socketer
+class Socketer
   # Your code goes here...
 end

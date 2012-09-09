@@ -143,6 +143,7 @@ io.log.info('Listening stream');
 io.sockets.on('connection', function (socket) {
   streams.broadcast({type: 'connect', socket: socket.id});
   var sockid = socket.id;
+
   socket.on('disconnect', function (sock) {
     streams.broadcast({type: 'disconnect', socket: sockid});
   });

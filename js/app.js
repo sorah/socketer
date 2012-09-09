@@ -2,7 +2,9 @@ var config = {
   app: process.argv[2],
   stream: process.argv[3],
   token: process.argv[4],
-  token_changed: false
+  token_changed: false,
+  autostart: process.argv[5],
+  started: false
 }
 if (config.app.match(/^\d+$/))    config.app    = parseInt(config.app, 10);
 if (config.stream.match(/^\d+$/)) config.stream = parseInt(config.stream, 10);
@@ -116,6 +118,14 @@ var stream_handlers = {
     config.token = m.token;
     config.token_changed = true;
     r({type: 'set_token', done: true});
+  },
+  start: function(m, c, r) {
+    if (config.started) {
+      r({type: 'start', error: 409, message: 'Already started'});
+    } else {
+      start();
+      r({type: 'start', done: true});
+    }
   }
 };
 
@@ -168,18 +178,27 @@ var server = net.createServer(function (c) {
 server.listen(config.stream);
 io.log.info('Listening stream');
 
-io.sockets.on('connection', function (socket) {
-  streams.broadcast({type: 'connect', socket: socket.id});
-  var sockid = socket.id;
+var start = function() {
+  if (config.started) return;
+  config.started = true;
+  io.log.info('Start listening connection');
+  io.sockets.on('connection', function (socket) {
+    streams.broadcast({type: 'connect', socket: socket.id});
+    var sockid = socket.id;
 
-  socket.on('disconnect', function (sock) {
-    streams.broadcast({type: 'disconnect', socket: sockid});
+    socket.on('disconnect', function (sock) {
+      streams.broadcast({type: 'disconnect', socket: sockid});
+    });
+    socket.on('anything', function (event, args) {
+      if (!hooks.global[event]) return;
+      for(var k in hooks.global[event]) {
+        if (!hooks.global[event].hasOwnProperty(k)) continue;
+        hooks.global[event][k].apply(this, args);
+      }
+    });
   });
-  socket.on('anything', function (event, args) {
-    if (!hooks.global[event]) return;
-    for(var k in hooks.global[event]) {
-      if (!hooks.global[event].hasOwnProperty(k)) continue;
-      hooks.global[event][k].apply(this, args);
-    }
-  });
-});
+}
+
+if (config.autostart) {
+  start();
+}

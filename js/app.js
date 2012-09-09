@@ -40,7 +40,7 @@ streams.broadcast = function (msg) {
     streams[k].write(msgpack.pack(msg));
   }
 }
-var stream_hooks = {global: {}};
+var hooks = {global: {}};
 
 var util = {
   emitter: function(m, r, global) {
@@ -63,9 +63,9 @@ var stream_handlers = {
       if(!socket) return r({error: 404, message: 'socket not found'});
     }
 
-    if(!stream_hooks[c.cid]) stream_hooks[c.cid] = {};
+    if(!hooks[c.cid]) hooks[c.cid] = {};
 
-    var hid = crypto.createHash('md5').update(c.cid+Date.now()+m.kind+m.socket).digest('hex');
+    var hid = crypto.createHash('md5').update(c.cid+Date.now()+m.event+m.socket).digest('hex');
 
     var hook = function(data, callback) {
       console.log(hook.hid + " callback:", data);
@@ -78,20 +78,20 @@ var stream_handlers = {
     hook.hid = hid;
 
     if(socket) {
-      socket.on(m.kind, hook);
+      socket.on(m.event, hook);
 
-      stream_hooks[c.cid][hook.hid] = hook;
+      hooks[c.cid][hook.hid] = hook;
     } else {
-      if(!stream_hooks.global[m.kind]) stream_hooks.global[m.kind] = {};
-      stream_hooks.global[m.kind][hook.hid] = hook;
+      if(!hooks.global[m.event]) hooks.global[m.event] = {};
+      hooks.global[m.event][hook.hid] = hook;
     }
 
-    r({type: 'on', kind: m.kind, hook: hook.hid, socket: m.socket, done: true});
+    r({type: 'on', event: m.event, hook: hook.hid, socket: m.socket, done: true});
   },
   emit: function(m, c, r) {
     var e = util.emitter(m, r, true); if(!e) return;
-    e.emit(m.kind, m.message);
-    r({type: 'emit', kind: m.kind, done: true});
+    e.emit(m.event, m.message);
+    r({type: 'emit', event: m.event, done: true});
   },
   send: function(m, c, r) {
     var e = util.emitter(m, r, true); if(!e) return;
@@ -176,10 +176,10 @@ io.sockets.on('connection', function (socket) {
     streams.broadcast({type: 'disconnect', socket: sockid});
   });
   socket.on('anything', function (event, args) {
-    if (!stream_hooks.global[event]) return;
-    for(var k in stream_hooks.global[event]) {
-      if (!stream_hooks.global[event].hasOwnProperty(k)) continue;
-      stream_hooks.global[event][k].apply(this, args);
+    if (!hooks.global[event]) return;
+    for(var k in hooks.global[event]) {
+      if (!hooks.global[event].hasOwnProperty(k)) continue;
+      hooks.global[event][k].apply(this, args);
     }
   });
 });

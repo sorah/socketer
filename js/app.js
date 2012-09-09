@@ -15,7 +15,7 @@ var HTTP = require('http')
   , crypto = require('crypto')
 
 var app = HTTP.createServer(function (request, response) {
-  response.writeHead(301, {'Location': 'http://www.google.com/'});
+  response.writeHead(404, {});
   response.end('');
 });
 app.listen(config.app);

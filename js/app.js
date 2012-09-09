@@ -44,7 +44,7 @@ var hooks = {global: {}};
 
 var util = {
   emitter: function(m, r, global) {
-    var emitter = (global && m.global) ? io.sockets : io.sockets.sockets[m.socket];
+    var emitter = (global && !m.socket) ? io.sockets : io.sockets.sockets[m.socket];
     if(!emitter) {
       r({error: 404, message: 'socket not found'});
       return null;

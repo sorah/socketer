@@ -1,9 +1,11 @@
 var config = {
-  app: 8080,
-  stream: 8081,
-  token: 'foobar',
+  app: process.argv[1],
+  stream: process.argv[2],
+  token: process.argv[3],
   token_changed: false
 }
+if (app.match(/^\d+$/))    config.app    = parseInt(config.app, 10);
+if (stream.match(/^\d+$/)) config.stream = parseInt(config.stream, 10);
 
 var HTTP = require('http')
   , SocketIO = require('socket.io')

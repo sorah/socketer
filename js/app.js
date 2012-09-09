@@ -9,6 +9,7 @@ var HTTP = require('http')
   , net = require('net')
   , msgpack = require('msgpack')
   , sys = require('sys')
+  , crypto = require('crypto')
 
 var app = HTTP.createServer(function (request, response) {
   response.writeHead(301, {'Location': 'http://www.google.com/'});
@@ -43,7 +44,8 @@ var stream_handlers = {
     var socket = io.sockets.sockets[m.socket];
     if(!socket) return r({error: true, error_id: 404, message: 'socket not found'});
     if(!stream_hooks[c.cid]) stream_hooks[c.cid] = {};
-    var hid = c.cid+Date.now()+m.kind;
+
+    var hid = crypto.createHash('md5').update(c.cid+Date.now()+m.kind+m.socket).digest('hex');
 
     var hook = function(data, callback) {
       console.log(hook.hid + " callback:", data);
@@ -69,15 +71,15 @@ var stream_handlers = {
     emitter.send(m.message);
     r({type: 'send', done: true});
   },
-  'socket.get': function(m, c, r) {
+  get: function(m, c, r) {
   },
-  'socket.set': function(m, c, r) {
+  set: function(m, c, r) {
   }
 };
 
 var server = net.createServer(function (c) {
   authorized = false;
-  c.cid = c.remoteAddress + Date.now();
+  c.cid = crypto.createHash('md5').update(c.remoteAddress + c.remotePort + Date.now()).digest('hex');
   io.log.info('stream: new connection - ' + c.cid);
   c.on('end', function() {
     delete streams[c.cid];
@@ -91,7 +93,7 @@ var server = net.createServer(function (c) {
       var handler = stream_handlers[m.type];
       if (handler) {
         handler(m, c, function(reply) {
-          reply.reply_to = m.message_id;
+          reply.reply_to = m.id;
           io.log.debug('stream ' + c.cid + ': replying - ' + sys.inspect(m));
           c.write(msgpack.pack(reply));
         });

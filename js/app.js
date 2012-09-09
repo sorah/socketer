@@ -1,11 +1,11 @@
 var config = {
-  app: process.argv[1],
-  stream: process.argv[2],
-  token: process.argv[3],
+  app: process.argv[2],
+  stream: process.argv[3],
+  token: process.argv[4],
   token_changed: false
 }
-if (app.match(/^\d+$/))    config.app    = parseInt(config.app, 10);
-if (stream.match(/^\d+$/)) config.stream = parseInt(config.stream, 10);
+if (config.app.match(/^\d+$/))    config.app    = parseInt(config.app, 10);
+if (config.stream.match(/^\d+$/)) config.stream = parseInt(config.stream, 10);
 
 var HTTP = require('http')
   , SocketIO = require('socket.io')

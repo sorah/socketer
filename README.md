@@ -16,6 +16,12 @@ Or install it yourself as:
 
     $ gem install socketer
 
+## Requirements
+
+* Ruby 1.9+ (1.9.3 supported)
+* node.js
+* npm
+
 ## Usage
 
 TODO: Write usage instructions here

@@ -14,4 +14,7 @@ Gem::Specification.new do |gem|
   gem.name          = "socketer"
   gem.require_paths = ["lib"]
   gem.version       = Socketer::VERSION
+
+  gem.add_dependency "msgpack"
+  gem.add_development_dependency "rspec", "~> 2.11.0"
 end

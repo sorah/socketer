@@ -1,0 +1,11 @@
+{
+  "name": "socketer-app",
+  "preferGlobal": false,
+  "version": "0.1.0",
+  "author": "Shota Fukumori (sora_h) <sorah@tubusu.net>",
+  "dependencies" : {
+    "socket.io" :  "*",
+    "msgpack"   :  "*"
+  },
+  "license": "MIT"
+}

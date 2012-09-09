@@ -1,7 +1,8 @@
 var config = {
   app: 8080,
   stream: 8081,
-  token: 'foobar'
+  token: 'foobar',
+  token_changed: false
 }
 
 var HTTP = require('http')
@@ -32,17 +33,19 @@ var stream_hooks = {};
 var util = {
   emitter: function(m, global) {
     var emitter = (global && m.global) ? io.sockets : io.sockets.sockets[m.socket];
-    if(!emitter) return r({error: true, error_id: 404, message: 'socket not found'});
+    if(!emitter) return r({error: 404, message: 'socket not found'});
     if(m.broadcast) emitter = emitter.broadcast;
     if(m.volatile) emitter = emitter.volatile;
     if(m.json) emitter = emitter.json;
+    return emitter;
   }
 }
 
 var stream_handlers = {
   on: function(m, c, r) {
+    // TODO: socket less hook
     var socket = io.sockets.sockets[m.socket];
-    if(!socket) return r({error: true, error_id: 404, message: 'socket not found'});
+    if(!socket) return r({error: 404, message: 'socket not found'});
     if(!stream_hooks[c.cid]) stream_hooks[c.cid] = {};
 
     var hid = crypto.createHash('md5').update(c.cid+Date.now()+m.kind+m.socket).digest('hex');
@@ -62,24 +65,29 @@ var stream_handlers = {
     r({type: 'on', kind: m.kind, hook: hook.hid});
   },
   emit: function(m, c, r) {
-    var emitter = util.emitter(m, true);
-    emitter.emit(m.kind, m.message);
+    util.emitter(m, true).emit(m.kind, m.message);
     r({type: 'emit', kind: m.kind, done: true});
   },
   send: function(m, c, r) {
-    var emitter = util.emitter(m, true);
-    emitter.send(m.message);
+    util.emitter(m, true).send(m.message);
     r({type: 'send', done: true});
   },
   get: function(m, c, r) {
   },
   set: function(m, c, r) {
+  },
+  set_token: function(m, c, r) {
+    if(config.token_changed) r({error: 406, message: 'token already set, cannot overwrite'});
+    config.token = m.token;
+    config.token_changed = true;
+    r({type: 'set_token', done: true});
   }
 };
 
 var server = net.createServer(function (c) {
-  authorized = false;
+  var authorized = false;
   c.cid = crypto.createHash('md5').update(c.remoteAddress + c.remotePort + Date.now()).digest('hex');
+
   io.log.info('stream: new connection - ' + c.cid);
   c.on('end', function() {
     delete streams[c.cid];
@@ -90,27 +98,35 @@ var server = net.createServer(function (c) {
   ms.addListener('msg', function (m) {
     if (authorized && m.type) {
       io.log.debug('stream ' + c.cid + ': handle - ' + sys.inspect(m));
+
       var handler = stream_handlers[m.type];
-      if (handler) {
-        handler(m, c, function(reply) {
-          reply.reply_to = m.id;
-          io.log.debug('stream ' + c.cid + ': replying - ' + sys.inspect(m));
-          c.write(msgpack.pack(reply));
-        });
-      } else {
+      if (!handler) {
         io.log.error('stream ' + c.cid + ': handler for ' + m.type + ' not found, ignoring.');
+        c.write(msgpack.pack({error: 400, message: 'handler for "' + m.type + '" not found.', reply_to: m.id}));
+        return;
       }
+
+      handler(m, c, function(reply) {
+        reply.reply_to = m.id;
+        io.log.debug('stream ' + c.cid + ': replying - ' + sys.inspect(m));
+        c.write(msgpack.pack(reply));
+      });
     } else if (!authorized) {
       if (m.auth == config.token) {
         authorized = true;
-        c.write(msgpack.pack({auth: true}));
         streams[c.cid] = c;
+        c.write(msgpack.pack({auth: true}));
+
         io.log.info('stream ' + c.cid + ': authorized');
       } else {
         c.write(msgpack.pack({auth: false}));
-        io.log.warn('stream ' + c.cid + ': AUTH FAILED');
         c.destroy();
+
+        io.log.warn('stream ' + c.cid + ': AUTH FAILED');
       }
+    } else {
+      io.log.error('stream ' + c.cid + ': no type specified, ignoreing.')
+      c.write(msgpack.pack({error: 400, message: "'type' not specified"}));
     }
   });
 });

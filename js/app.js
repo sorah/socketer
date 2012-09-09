@@ -79,9 +79,18 @@ var stream_handlers = {
     e.send(m.message);
     r({type: 'send', done: true});
   },
-  get: function(m, c, r) { // TODO: implement
+  get: function(m, c, r) {
+    var socket = io.sockets.sockets[m.socket];
+    if(!socket) return r({error: 404, message: 'socket not found'});
+
+    r({type: 'get', socket: m.socket, key: m.key, value: socket.get(m.key)});
   },
-  set: function(m, c, r) { // TODO: implement
+  set: function(m, c, r) {
+    var socket = io.sockets.sockets[m.socket];
+    if(!socket) return r({error: 404, message: 'socket not found'});
+
+    socket.set(m.key, m.value);
+    r({type: 'set', socket: m.socket, key: m.key});
   },
   set_token: function(m, c, r) {
     if(config.token_changed) r({error: 406, message: 'token already set, cannot overwrite'});

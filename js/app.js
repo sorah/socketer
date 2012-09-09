@@ -93,7 +93,7 @@ var stream_handlers = {
     r({type: 'set', socket: m.socket, key: m.key});
   },
   set_token: function(m, c, r) {
-    if(config.token_changed) r({error: 406, message: 'token already set, cannot overwrite'});
+    if(config.token_changed) return r({error: 406, message: 'token already set, cannot overwrite'});
     config.token = m.token;
     config.token_changed = true;
     r({type: 'set_token', done: true});

@@ -33,9 +33,12 @@ streams.broadcast = function (msg) {
 var stream_hooks = {};
 
 var util = {
-  emitter: function(m, global) {
+  emitter: function(m, r, global) {
     var emitter = (global && m.global) ? io.sockets : io.sockets.sockets[m.socket];
-    if(!emitter) return r({error: 404, message: 'socket not found'});
+    if(!emitter) {
+      r({error: 404, message: 'socket not found'});
+      return null;
+    }
     if(m.broadcast) emitter = emitter.broadcast;
     if(m.volatile) emitter = emitter.volatile;
     if(m.json) emitter = emitter.json;
@@ -67,16 +70,18 @@ var stream_handlers = {
     r({type: 'on', kind: m.kind, hook: hook.hid});
   },
   emit: function(m, c, r) {
-    util.emitter(m, true).emit(m.kind, m.message);
+    var e = util.emitter(m, r, true); if(!e) return;
+    e.emit(m.kind, m.message);
     r({type: 'emit', kind: m.kind, done: true});
   },
   send: function(m, c, r) {
-    util.emitter(m, true).send(m.message);
+    var e = util.emitter(m, r, true); if(!e) return;
+    e.send(m.message);
     r({type: 'send', done: true});
   },
-  get: function(m, c, r) {
+  get: function(m, c, r) { // TODO: implement
   },
-  set: function(m, c, r) {
+  set: function(m, c, r) { // TODO: implement
   },
   set_token: function(m, c, r) {
     if(config.token_changed) r({error: 406, message: 'token already set, cannot overwrite'});

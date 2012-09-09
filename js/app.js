@@ -14,6 +14,16 @@ var HTTP = require('http')
   , sys = require('sys')
   , crypto = require('crypto')
 
+
+// bad hack, socket.io haven't prepare a way to listen all events
+var orig_emit = SocketIO.Socket.prototype.$emit // http://nodejs.org/api/events.html#events_emitter_emit_event_arg1_arg2
+SocketIO.Socket.prototype.$emit = function() {
+  orig_emit.apply(this, arguments)
+  var args = Array.prototype.slice.call(arguments);
+  var event = args.shift();
+  orig_emit.apply(this, ['anything', event, args]);
+}
+
 var app = HTTP.createServer(function (request, response) {
   response.writeHead(404, {});
   response.end('');
@@ -30,7 +40,7 @@ streams.broadcast = function (msg) {
     streams[k].write(msgpack.pack(msg));
   }
 }
-var stream_hooks = {};
+var stream_hooks = {global: {}};
 
 var util = {
   emitter: function(m, r, global) {
@@ -48,9 +58,11 @@ var util = {
 
 var stream_handlers = {
   on: function(m, c, r) {
-    // TODO: socket less hook
-    var socket = io.sockets.sockets[m.socket];
-    if(!socket) return r({error: 404, message: 'socket not found'});
+    if (m.socket) {
+      var socket = io.sockets.sockets[m.socket];
+      if(!socket) return r({error: 404, message: 'socket not found'});
+    }
+
     if(!stream_hooks[c.cid]) stream_hooks[c.cid] = {};
 
     var hid = crypto.createHash('md5').update(c.cid+Date.now()+m.kind+m.socket).digest('hex');
@@ -63,11 +75,18 @@ var stream_handlers = {
         data: data
       }));
     }
-    socket.on(m.kind, hook);
     hook.hid = hid;
 
-    stream_hooks[c.cid][hook.hid] = hook;
-    r({type: 'on', kind: m.kind, hook: hook.hid});
+    if(socket) {
+      socket.on(m.kind, hook);
+
+      stream_hooks[c.cid][hook.hid] = hook;
+    } else {
+      if(!stream_hooks.global[m.kind]) stream_hooks.global[m.kind] = {};
+      stream_hooks.global[m.kind][hook.hid] = hook;
+    }
+
+    r({type: 'on', kind: m.kind, hook: hook.hid, socket: m.socket, done: true});
   },
   emit: function(m, c, r) {
     var e = util.emitter(m, r, true); if(!e) return;
@@ -83,14 +102,14 @@ var stream_handlers = {
     var socket = io.sockets.sockets[m.socket];
     if(!socket) return r({error: 404, message: 'socket not found'});
 
-    r({type: 'get', socket: m.socket, key: m.key, value: socket.get(m.key)});
+    r({type: 'get', socket: m.socket, key: m.key, value: socket.get(m.key), done: true});
   },
   set: function(m, c, r) {
     var socket = io.sockets.sockets[m.socket];
     if(!socket) return r({error: 404, message: 'socket not found'});
 
     socket.set(m.key, m.value);
-    r({type: 'set', socket: m.socket, key: m.key});
+    r({type: 'set', socket: m.socket, key: m.key, done: true});
   },
   set_token: function(m, c, r) {
     if(config.token_changed) return r({error: 406, message: 'token already set, cannot overwrite'});
@@ -155,5 +174,12 @@ io.sockets.on('connection', function (socket) {
 
   socket.on('disconnect', function (sock) {
     streams.broadcast({type: 'disconnect', socket: sockid});
+  });
+  socket.on('anything', function (event, args) {
+    if (!stream_hooks.global[event]) return;
+    for(var k in stream_hooks.global[event]) {
+      if (!stream_hooks.global[event].hasOwnProperty(k)) continue;
+      stream_hooks.global[event][k].apply(this, args);
+    }
   });
 });
